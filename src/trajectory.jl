@@ -9,6 +9,7 @@ export AbstractTrajectory,
        PeriodicCellTrajectory,
        natoms,
        distances,
+       volume,
        compute_rdf
 
 
@@ -93,10 +94,16 @@ function distances(t::AbstactPeriodicCellTrajectory, ur1::AbstractUnitRange, ur2
     return out
 end
 
-function compute_rdf(t::AbstactPeriodicCellTrajectory, ur1::AbstractUnitRange, ur2::AbstractUnitRange; mindis=undef, maxdis=9.0, nbins=100)
+function volume(t::AbstactPeriodicCellTrajectory)
+    vd = diag(t.cell[:,:,1])
+    return vd[1]*vd[2]*vd[3]
+end
+
+function compute_rdf(t::AbstactPeriodicCellTrajectory, ur1::AbstractUnitRange,
+                     ur2::AbstractUnitRange; mindis=undef, maxdis=9.0, nbins=100)
+    #NOTE Constant volume
     dis = distances(t, ur1, ur2)
     vd = diag(t.cell[:,:,1])
-    ρ = length(ur2) / (vd[1]*vd[2]*vd[3])
     di = DiscretizeUniformWidth(nbins)
     data = Dict()
     for i in ur1
@@ -119,6 +126,7 @@ function compute_rdf(t::AbstactPeriodicCellTrajectory, ur1::AbstractUnitRange, u
         else
             e = binedges(di, val)
         end
+        ρ = length(val) / volume(t)
         r = 0.5 .* (e[1:end-1] .+ e[2:end])
         dr = diff(e)
         disc = LinearDiscretizer(e)

@@ -7,6 +7,7 @@ export AbstractTrajectory,
        PeriodicCellTrajectory,
        natoms,
        distances,
+       volume,
        compute_rdf,
 
        read_xyz,
