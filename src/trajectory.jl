@@ -117,6 +117,7 @@ function compute_rdf(t::AbstactPeriodicCellTrajectory, ur1::AbstractUnitRange,
         end
     end
 
+    ρ = length(ur2)*length(t) / volume(t)
     edges = Dict()
     counts = Dict()
     radius = Dict()
@@ -126,7 +127,6 @@ function compute_rdf(t::AbstactPeriodicCellTrajectory, ur1::AbstractUnitRange,
         else
             e = binedges(di, val)
         end
-        ρ = length(val) / volume(t)
         r = 0.5 .* (e[1:end-1] .+ e[2:end])
         dr = diff(e)
         disc = LinearDiscretizer(e)
@@ -137,5 +137,8 @@ function compute_rdf(t::AbstactPeriodicCellTrajectory, ur1::AbstractUnitRange,
     end
     return Dict("r"=>radius, "rdf"=>counts)
 end
+
+
+
 
 end  # module trajectory

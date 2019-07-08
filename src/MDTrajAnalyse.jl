@@ -11,7 +11,9 @@ export AbstractTrajectory,
        compute_rdf,
 
        read_xyz,
-       read_pdb
+       read_pdb,
+       parallel_rdf,
+       parallel_rdf_from_files
 
 
 include("trajectory.jl")

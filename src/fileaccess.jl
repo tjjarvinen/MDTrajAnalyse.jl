@@ -1,9 +1,13 @@
 module fileaccess
 
 using ..trajectory
+using Distributed
+
 
 export read_xyz,
-       read_pdb
+       read_pdb,
+       parallel_rdf,
+       parallel_rdf_from_files
 
 function read_xyz(fname)
     lines = Vector{String}()
@@ -80,14 +84,66 @@ function read_pdb(fname)
         end
     end
     natoms = length(atoms)
-    nframes = Int(length(xyz)/(3*natoms))
-    cell = zeros(3,3,nframes)
 
-    cell[1:9:end] = crystal[1:3:end]
-    cell[5:9:end] = crystal[2:3:end]
-    cell[9:9:end] = crystal[3:3:end]
-    return PeriodicCellTrajectory( reshape(xyz ,3, natoms, Int(length(xyz)/(3*natoms))  ), cell )
+    #This is a hack!!!
+    nframes = Int( floor(length(xyz)/(3*natoms)))
+    cell = zeros(3,3,nframes)
+    if length(crystal)*3 == nframes
+        cell[1:9:end] = crystal[1:3:end]
+        cell[5:9:end] = crystal[2:3:end]
+        cell[9:9:end] = crystal[3:3:end]
+    elseif length(crystal)*3 < nframes
+        #TODO fix this cheating !!!
+        cell[1:9:3*length(crystal)] = crystal[1:3:end]
+        cell[5:9:3*length(crystal)] = crystal[2:3:end]
+        cell[9:9:3*length(crystal)] = crystal[3:3:end]
+    else
+        cell[1:9:end] = crystal[1:3:3*nframes]
+        cell[5:9:end] = crystal[2:3:3*nframes]
+        cell[9:9:end] = crystal[3:3:3*nframes]
+    end
+    #Hack again!!!
+    out = xyz[1:3*natoms*nframes]
+    return PeriodicCellTrajectory( reshape(out ,3, natoms, nframes), cell )
 end
 
+
+
+
+function rdf_from_file(fname, ur1::AbstractUnitRange,
+                     ur2::AbstractUnitRange; mindis=undef, maxdis=9.0, nbins=100)
+    try
+        t = read_pdb(fname)
+        return compute_rdf(t, ur1, ur2, mindis=mindis, maxdis=maxdis, nbins=nbins)
+    catch
+        @warn "file $fname failed"
+    end
+        return Dict()
+end
+
+function parallel_rdf_from_files(fnames::AbstractVector{String}, ur1::AbstractUnitRange,
+                     ur2::AbstractUnitRange; mindis=undef, maxdis=9.0, nbins=100)
+    dtmp = pmap( x -> rdf_from_file(x, ur1, ur2, mindis=mindis, maxdis=maxdis, nbins=nbins)   , fnames)
+    data = []
+    for x in dtmp
+        if length(keys(x)) == 2
+            push!(data,x)
+        end
+    end
+    rdf = Dict()
+    for (k,v) in data[1]["rdf"]
+        push!(rdf, k => deepcopy(v))
+    end
+    for x in data[2:end]
+        for (k,v) in x["rdf"]
+            rdf[k] .+= v
+        end
+    end
+    for k in keys(rdf)
+        rdf[k] ./= length(data)
+    end
+    rk = collect(keys(data[1]["r"]))[1]
+    return Dict("r"=>data[1]["r"][rk] , "rdf" => rdf)
+end
 
 end  # module fileaccess
