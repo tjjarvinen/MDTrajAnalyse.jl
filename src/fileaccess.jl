@@ -22,25 +22,25 @@ function read_xyz(fname)
     nclusters = Int(floor(length(lines)/(natoms+2)))
     @debug "Type of nclusters $(typeof(nclusters))"
 
-    xyz = zeros(Float64, 3, natoms)
+    xyz = zeros(Float32, 3, natoms)
     atoms = Vector{String}(undef, natoms)
-    data = Vector{Float64}()
+    data = Vector{Float32}()
 
     for na in 1:natoms
         cont = split(lines[na+2])
         atoms[na] = cont[1]
-        xyz[1,na] = parse(Float64, cont[2])
-        xyz[2,na] = parse(Float64, cont[3])
-        xyz[3,na] = parse(Float64, cont[4])
+        xyz[1,na] = parse(Float32, cont[2])
+        xyz[2,na] = parse(Float32, cont[3])
+        xyz[3,na] = parse(Float32, cont[4])
     end
     append!(data,xyz)
 
     for nc in 2:nclusters
         for na in 1:natoms
             cont = split(lines[(nc-1)*(natoms+2)+na+2])
-            xyz[1,na] = parse(Float64, cont[2])
-            xyz[2,na] = parse(Float64, cont[3])
-            xyz[3,na] = parse(Float64, cont[4])
+            xyz[1,na] = parse(Float32, cont[2])
+            xyz[2,na] = parse(Float32, cont[3])
+            xyz[3,na] = parse(Float32, cont[4])
         end
         append!(data,xyz)
     end
@@ -54,19 +54,20 @@ function read_pdb(fname)
     open(fname, "r") do file
         lines = readlines(file)
     end
-    xyz = Vector{Float64}()
+    xyz = Vector{Float32}()
     atoms = Vector{String}()
-    crystal = Vector{Float64}()
+    crystal = Vector{Float32}()
     i = 1
 
     while i<length(lines)
         if occursin("CRYST1", lines[i])
             terms = split(lines[i])
-            append!(crystal,parse.(Float64, terms[2:4]))
-        elseif occursin("ATOM", lines[i])
-            terms = split(lines[i])
-            push!(atoms, terms[end])
-            append!(xyz, parse.(Float64, terms[4:6]) )
+            append!(crystal,parse.(Float32, terms[2:4]))
+        elseif occursin("ATOM", lines[i]) || occursin("HETATM", lines[i])
+            push!(atoms, lines[i][77:78])
+            push!(xyz, parse(Float32, lines[i][31:38]))
+            push!(xyz, parse(Float32, lines[i][39:46]))
+            push!(xyz, parse(Float32, lines[i][47:54]))
         elseif occursin("END", lines[i])
             i+=1
             break
@@ -76,8 +77,9 @@ function read_pdb(fname)
 
     for line in lines[i:end]
         if occursin("ATOM", line)
-            terms = split(line)
-            append!(xyz, parse.(Float64, terms[4:6]) )
+            push!(xyz, parse(Float32, line[31:38]))
+            push!(xyz, parse(Float32, line[39:46]))
+            push!(xyz, parse(Float32, line[47:54]))
         elseif occursin("CRYST1", line)
             terms = split(line)
             append!(crystal,parse.(Float64, terms[2:4]))

@@ -19,7 +19,7 @@ abstract type AbstactPeriodicCellTrajectory <: AbstractTrajectory end
 
 
 mutable struct Trajectory <: AbstractTrajectory
-    xyz::Array{Float64,3}
+    xyz::Array{Float32,3}
     function Trajectory(xyz::AbstractArray{<:Real,3})
         if size(xyz,1) != 3
             throw(DimensionMismatch("Trajectory - xyz has wrong dimensions"))
@@ -30,7 +30,7 @@ end
 
 
 mutable struct TrajectoryWithNames <: AbstractTrajectoryWithNames
-    xyz::Array{Float64,3}
+    xyz::Array{Float32,3}
     anames::Vector{String}
     function TrajectoryWithNames(xyz::AbstractArray{<:Real,3}, anames::Vector{String})
         if size(xyz,1) != 3
@@ -44,8 +44,8 @@ mutable struct TrajectoryWithNames <: AbstractTrajectoryWithNames
 end
 
 mutable struct PeriodicCellTrajectory <: AbstactPeriodicCellTrajectory
-    xyz::Array{Float64,3}
-    cell::Array{Float64,3}
+    xyz::Array{Float32,3}
+    cell::Array{Float32,3}
     function PeriodicCellTrajectory(xyz::AbstractArray{<:Real,3}, cell::AbstractArray{<:Real,3})
         if size(xyz,1) != 3
             throw(DimensionMismatch("PeriodicCellTrajectory - xyz has wrong dimensions"))
@@ -55,6 +55,20 @@ mutable struct PeriodicCellTrajectory <: AbstactPeriodicCellTrajectory
         end
         if size(cell,3) != size(xyz, 3)
             throw(DimensionMismatch("PeriodicCellTrajectory - cell and xyz have different dimensions"))
+        end
+        new(xyz,cell)
+    end
+end
+
+mutable struct PeriodicConstCellTrajectory <: AbstactPeriodicCellTrajectory
+    xyz::Array{Float32,3}
+    cell::Array{Float32,2}
+    function PeriodicCellTrajectory(xyz::AbstractArray{<:Real,3}, cell::AbstractArray{<:Real,2})
+        if size(xyz,1) != 3
+            throw(DimensionMismatch("PeriodicCellTrajectory - xyz has wrong dimensions"))
+        end
+        if size(cell, 1) != 3 || size(cell, 2) != 3
+            throw(DimensionMismatch("PeriodicCellTrajectory - cell has wrong dimensions"))
         end
         new(xyz,cell)
     end
