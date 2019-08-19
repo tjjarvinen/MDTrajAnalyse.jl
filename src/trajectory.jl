@@ -62,6 +62,20 @@ struct PeriodicCellTrajectory <: AbstactPeriodicCellTrajectory
     end
 end
 
+struct PeriodicConstCellTrajectory <: AbstactPeriodicCellTrajectory
+    xyz::Array{Float64,3}
+    cell::Array{Float64,2}
+    function PeriodicCellTrajectory(xyz::AbstractArray{<:Real,3}, cell::AbstractArray{<:Real,2})
+        if size(xyz,1) != 3
+            throw(DimensionMismatch("PeriodicCellTrajectory - xyz has wrong dimensions"))
+        end
+        if size(cell, 1) != 3 || size(cell, 2) != 3
+            throw(DimensionMismatch("PeriodicCellTrajectory - cell has wrong dimensions"))
+        end
+        new(xyz,cell)
+    end
+end
+
 
 natoms(t::AbstractTrajectory) = size(t.xyz,2)
 
