@@ -10,7 +10,8 @@ export AbstractTrajectory,
        natoms,
        distances,
        distances!,
-       volume,
+       cellvolume,
+       angletoframe,
        sphericalview,
        compute_rdf
 
@@ -149,15 +150,38 @@ end
 
 
 
-function volume(t::AbstactPeriodicCellTrajectory)
-    vd = diag(t.cell[:,:,1])
-    return vd[1]*vd[2]*vd[3]
+cellvolume(t::PeriodicConstCellTrajectory) = abs(det(t.cell))
+cellvolume(t::PeriodicConstCellTrajectory,i) = cellvolume(t)
+
+cellvolume(t::PeriodicCellTrajectory) = sum(map(x-> cellvolume(t, x), 1:length(t)))/length(t)
+cellvolume(t::PeriodicCellTrajectory, i) = abs(det(view(t.cell,:,:,i)))
+
+
+"""
+    angle(t::AbstractTrajectory, i, j, k)
+
+Computes angle for atoms i, j, k
+"""
+function Base.angle(t::AbstractTrajectory, i, j, k)
+    r1 = view(t,i,:) .- view(t,j,:)
+    r2 = view(t,k,:) .- view(t,j,:)
+    acos.(1 .- colwise(CosineDist(),r1,r2)) .* 180 ./ π
 end
 
-function volume(t::AbstactPeriodicCellTrajectory, i)
-    vd = diag(t.cell[:,:,i])
-    return vd[1]*vd[2]*vd[3]
+"""
+    angletoframe(t::AbstractTrajectory, i, j, k; frame=:)
+
+Computes angle two vectors. First from atoms i to j second from k to m.
+Only given frame is calculated for first given vector.
+If frame=: (default) then calculate for whole trajectory.
+"""
+function angletoframe(t::AbstractTrajectory, i, j, k, m; frame=:)
+    r1 = view(t,j,frame) .- view(t,i,frame)
+    r2 = view(t,m,:) .- view(t,k,:)
+    acos.(1 .- colwise(CosineDist(),r1,r2)) .* 180 ./ π
 end
+
+
 
 
 """
@@ -187,7 +211,6 @@ Calculates radial distribution function
 """
 function compute_rdf(t::AbstactPeriodicCellTrajectory, ur1::AbstractUnitRange,
                      ur2::AbstractUnitRange; mindis=undef, maxdis=9.0, nbins=100)
-    #NOTE Constant volume
     dis = distances(t, ur1, ur2)
     vd = diag(t.cell[:,:,1])
     di = DiscretizeUniformWidth(nbins)
@@ -203,7 +226,7 @@ function compute_rdf(t::AbstactPeriodicCellTrajectory, ur1::AbstractUnitRange,
         end
     end
 
-    ρ = length(ur2)*length(t) / volume(t)
+    ρ = length(ur2)*length(t) / cellvolume(t)
     edges = Dict()
     counts = Dict()
     radius = Dict()

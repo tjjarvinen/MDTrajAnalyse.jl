@@ -76,7 +76,7 @@ function read_pdb(fname)
     end
 
     for line in lines[i:end]
-        if occursin("ATOM", line)
+        if occursin("ATOM", line) || occursin("HETATM", lines[i])
             push!(xyz, parse(Float64, line[31:38]))
             push!(xyz, parse(Float64, line[39:46]))
             push!(xyz, parse(Float64, line[47:54]))
