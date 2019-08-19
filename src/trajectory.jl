@@ -9,7 +9,9 @@ export AbstractTrajectory,
        PeriodicCellTrajectory,
        natoms,
        distances,
+       distances!,
        volume,
+       sphericalview,
        compute_rdf
 
 
@@ -18,7 +20,7 @@ abstract type AbstractTrajectoryWithNames <: AbstractTrajectory end
 abstract type AbstactPeriodicCellTrajectory <: AbstractTrajectory end
 
 
-mutable struct Trajectory <: AbstractTrajectory
+struct Trajectory <: AbstractTrajectory
     xyz::Array{Float64,3}
     function Trajectory(xyz::AbstractArray{<:Real,3})
         if size(xyz,1) != 3
@@ -29,7 +31,7 @@ mutable struct Trajectory <: AbstractTrajectory
 end
 
 
-mutable struct TrajectoryWithNames <: AbstractTrajectoryWithNames
+struct TrajectoryWithNames <: AbstractTrajectoryWithNames
     xyz::Array{Float64,3}
     anames::Vector{String}
     function TrajectoryWithNames(xyz::AbstractArray{<:Real,3}, anames::Vector{String})
@@ -43,7 +45,7 @@ mutable struct TrajectoryWithNames <: AbstractTrajectoryWithNames
     end
 end
 
-mutable struct PeriodicCellTrajectory <: AbstactPeriodicCellTrajectory
+struct PeriodicCellTrajectory <: AbstactPeriodicCellTrajectory
     xyz::Array{Float64,3}
     cell::Array{Float64,3}
     function PeriodicCellTrajectory(xyz::AbstractArray{<:Real,3}, cell::AbstractArray{<:Real,3})
@@ -77,28 +79,98 @@ Base.view(t::AbstractTrajectory, atom, frame) = view(t.xyz,:,atom,frame)
 Base.setindex!(t::AbstractTrajectory, X, frame) = t.xyz[:,:,frame] = X
 Base.setindex!(t::AbstractTrajectory, X, atom, frame) = t.xyz[:,atom,frame] = X
 
+
+
 function distances(t::AbstractTrajectory, ur1::AbstractUnitRange, ur2::AbstractUnitRange)
     L = Euclidean()
     out = Array{Float64}(undef, length(ur1), length(ur2), length(t))
     for i in 1:length(t)
-        out[:,:,i]=out,pairwise(L, view(t,i)[:,ur1], view(t,i)[:,ur2],dims=2)
+        pairwise!(view(out,:,:,i),L, view(t,ur1,i), view(t,ur2,i),dims=2)
     end
     return out
+end
+
+function distances!(r::AbstractArray{T,3} where T, t::AbstractTrajectory,
+                     ur1::AbstractUnitRange, ur2::AbstractUnitRange)
+    L = Euclidean()
+    for i in 1:length(t)
+        pairwise!(view(r,:,:,i),L, view(t,ur1,i), view(t,ur2,i),dims=2)
+    end
+    return r
 end
 
 function distances(t::AbstactPeriodicCellTrajectory, ur1::AbstractUnitRange, ur2::AbstractUnitRange)
     out = Array{Float64}(undef, length(ur1), length(ur2), length(t))
     for i in 1:length(t)
-        out[:,:,i]=pairwise(PeriodicEuclidean(diag(t.cell[:,:,i])), view(t,i)[:,ur1], view(t,i)[:,ur2],dims=2)
+        pairwise!(view(out,:,:,i),PeriodicEuclidean(diag(t.cell[:,:,i])), view(t,ur1,i), view(t,ur2,i),dims=2)
     end
     return out
 end
+
+function distances!(r::AbstractArray{T,3} where T, t::AbstactPeriodicCellTrajectory,
+                     ur1::AbstractUnitRange, ur2::AbstractUnitRange)
+    for i in 1:length(t)
+        pairwise!(view(r,:,:,i),PeriodicEuclidean(diag(t.cell[:,:,i])), view(t,ur1,i), view(t,ur2,i),dims=2)
+    end
+    return r
+end
+
+function distances(t::AbstractTrajectory, i1::Integer, i2::Integer)
+    colwise(Euclidean(), view(t,i1,:), view(t,i2,:))
+end
+
+function distances!(r::AbstractVector, t::AbstractTrajectory, i1::Integer, i2::Integer)
+    colwise!(r, Euclidean(), view(t,i1,:), view(t,i2,:))
+end
+
+function distances(t::AbstactPeriodicCellTrajectory, i1::Integer, i2::Integer)
+    M = PeriodicEuclidean(diag(t.cell[:,:,1]))
+    colwise(M, view(t,i1,:), view(t,i2,:))
+end
+
+function distances!(r::AbstractVector, t::AbstactPeriodicCellTrajectory, i1::Integer, i2::Integer)
+    M = PeriodicEuclidean(diag(t.cell[:,:,1]))
+    colwise!(r, M, view(t,i1,:), view(t,i2,:))
+end
+
+
 
 function volume(t::AbstactPeriodicCellTrajectory)
     vd = diag(t.cell[:,:,1])
     return vd[1]*vd[2]*vd[3]
 end
 
+function volume(t::AbstactPeriodicCellTrajectory, i)
+    vd = diag(t.cell[:,:,i])
+    return vd[1]*vd[2]*vd[3]
+end
+
+
+"""
+    sphericalview(t::AbstractTrajectory, i, j)
+
+Transfroms vector from atom i to j to spherical coordinates
+"""
+function sphericalview(t::AbstractTrajectory, i, j)
+    function rdis(r)
+         rr = sqrt.(sum(r.^2,dims=1)) #TODO fix for periodic
+         reshape(rr, (length(rr),1))
+    end
+    r = view(t,j,:) .- view(t,i,:)
+    rr = rdis(r)
+    ϕ = atan.(view(r,2,:), view(r,1,:))
+    θ = acos.( view(r,3,:) ./ rr  )
+    return Dict("r"=>rr, "θ"=>θ.*180 ./ π, "ϕ"=>ϕ.*180 ./ π)
+end
+
+
+
+"""
+    compute_rdf(t::AbstactPeriodicCellTrajectory, ur1::AbstractUnitRange,
+                     ur2::AbstractUnitRange; mindis=undef, maxdis=9.0, nbins=100)
+
+Calculates radial distribution function
+"""
 function compute_rdf(t::AbstactPeriodicCellTrajectory, ur1::AbstractUnitRange,
                      ur2::AbstractUnitRange; mindis=undef, maxdis=9.0, nbins=100)
     #NOTE Constant volume
