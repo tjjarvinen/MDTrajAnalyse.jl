@@ -1,6 +1,7 @@
 module trajectory
 
 using Distances, LinearAlgebra, Discretizers
+using ..cell
 
 export AbstractTrajectory,
        AbstractTrajectoryWithNames,
@@ -18,7 +19,7 @@ export AbstractTrajectory,
 
 abstract type AbstractTrajectory end
 abstract type AbstractTrajectoryWithNames <: AbstractTrajectory end
-abstract type AbstactPeriodicCellTrajectory <: AbstractTrajectory end
+abstract type AbstactPeriodicCellTrajectory{T} <: AbstractTrajectory  where T<:AbstractUnitCell  end
 
 
 struct Trajectory <: AbstractTrajectory
@@ -46,34 +47,28 @@ struct TrajectoryWithNames <: AbstractTrajectoryWithNames
     end
 end
 
-struct PeriodicCellTrajectory <: AbstactPeriodicCellTrajectory
+struct PeriodicCellTrajectory{T} <: AbstactPeriodicCellTrajectory{T}
     xyz::Array{Float64,3}
-    cell::Array{Float64,3}
-    function PeriodicCellTrajectory(xyz::AbstractArray{<:Real,3}, cell::AbstractArray{<:Real,3})
+    cell::Vector{T}
+    function PeriodicCellTrajectory(xyz::AbstractArray{<:Real,3}, c::AbstractVector{T}) where T <: AbstractUnitCell
         if size(xyz,1) != 3
             throw(DimensionMismatch("PeriodicCellTrajectory - xyz has wrong dimensions"))
         end
-        if size(cell, 1) != 3 || size(cell, 2) != 3
-            throw(DimensionMismatch("PeriodicCellTrajectory - cell has wrong dimensions"))
-        end
-        if size(cell,3) != size(xyz, 3)
+        if length(c) != size(xyz, 3)
             throw(DimensionMismatch("PeriodicCellTrajectory - cell and xyz have different dimensions"))
         end
-        new(xyz,cell)
+        new{T}(xyz, c)
     end
 end
 
-struct PeriodicConstCellTrajectory <: AbstactPeriodicCellTrajectory
+struct PeriodicConstCellTrajectory{T} <: AbstactPeriodicCellTrajectory{T}
     xyz::Array{Float64,3}
-    cell::Array{Float64,2}
-    function PeriodicCellTrajectory(xyz::AbstractArray{<:Real,3}, cell::AbstractArray{<:Real,2})
+    cell::T
+    function PeriodicCellTrajectory(xyz::AbstractArray{<:Real,3}, c::T)  where T <: AbstractUnitCell
         if size(xyz,1) != 3
             throw(DimensionMismatch("PeriodicCellTrajectory - xyz has wrong dimensions"))
         end
-        if size(cell, 1) != 3 || size(cell, 2) != 3
-            throw(DimensionMismatch("PeriodicCellTrajectory - cell has wrong dimensions"))
-        end
-        new(xyz,cell)
+        new{T}(xyz, c)
     end
 end
 
@@ -94,15 +89,13 @@ Base.view(t::AbstractTrajectory, atom, frame) = view(t.xyz,:,atom,frame)
 Base.setindex!(t::AbstractTrajectory, X, frame) = t.xyz[:,:,frame] = X
 Base.setindex!(t::AbstractTrajectory, X, atom, frame) = t.xyz[:,atom,frame] = X
 
+cell.celldiag(t::AbstactPeriodicCellTrajectory, i) = celldiag(t.cell[i])
+cell.celldiag(t::PeriodicConstCellTrajectory, i) = celldiag(t.cell)
 
 
 function distances(t::AbstractTrajectory, ur1::AbstractUnitRange, ur2::AbstractUnitRange)
-    L = Euclidean()
     out = Array{Float64}(undef, length(ur1), length(ur2), length(t))
-    for i in 1:length(t)
-        pairwise!(view(out,:,:,i),L, view(t,ur1,i), view(t,ur2,i),dims=2)
-    end
-    return out
+    distances!(out,t,ur1,ur2)
 end
 
 function distances!(r::AbstractArray{T,3} where T, t::AbstractTrajectory,
@@ -114,21 +107,19 @@ function distances!(r::AbstractArray{T,3} where T, t::AbstractTrajectory,
     return r
 end
 
-function distances(t::AbstactPeriodicCellTrajectory, ur1::AbstractUnitRange, ur2::AbstractUnitRange)
-    out = Array{Float64}(undef, length(ur1), length(ur2), length(t))
-    for i in 1:length(t)
-        pairwise!(view(out,:,:,i),PeriodicEuclidean(diag(t.cell[:,:,i])), view(t,ur1,i), view(t,ur2,i),dims=2)
-    end
-    return out
-end
-
 function distances!(r::AbstractArray{T,3} where T, t::AbstactPeriodicCellTrajectory,
                      ur1::AbstractUnitRange, ur2::AbstractUnitRange)
     for i in 1:length(t)
-        pairwise!(view(r,:,:,i),PeriodicEuclidean(diag(t.cell[:,:,i])), view(t,ur1,i), view(t,ur2,i),dims=2)
+        pairwise!(view(r,:,:,i),PeriodicEuclidean(celldiag(t,i)), view(t,ur1,i), view(t,ur2,i),dims=2)
     end
     return r
 end
+
+function distances!(r::AbstractArray{T,3} where T, t::AbstactPeriodicCellTrajectory{TriclinicCell},
+                     ur1::AbstractUnitRange, ur2::AbstractUnitRange)
+    @error("Not implemented")
+end
+
 
 function distances(t::AbstractTrajectory, i1::Integer, i2::Integer)
     colwise(Euclidean(), view(t,i1,:), view(t,i2,:))
@@ -138,29 +129,43 @@ function distances!(r::AbstractVector, t::AbstractTrajectory, i1::Integer, i2::I
     colwise!(r, Euclidean(), view(t,i1,:), view(t,i2,:))
 end
 
-function distances(t::AbstactPeriodicCellTrajectory, i1::Integer, i2::Integer)
-    M = PeriodicEuclidean(diag(t.cell[:,:,1]))
+function distances(t::PeriodicConstCellTrajectory, i1::Integer, i2::Integer)
+    M = PeriodicEuclidean(celldiag(t,1))
     colwise(M, view(t,i1,:), view(t,i2,:))
 end
 
-function distances!(r::AbstractVector, t::AbstactPeriodicCellTrajectory, i1::Integer, i2::Integer)
-    M = PeriodicEuclidean(diag(t.cell[:,:,1]))
+function distances(t::AbstactPeriodicCellTrajectory, i1::Integer, i2::Integer)
+    [ evaluate(PeriodicEuclidean(celldiag(t,j)), view(t,i1,j), view(t,i2,j)) for j in 1:length(t) ]
+end
+
+function distances(t::AbstactPeriodicCellTrajectory{TriclinicCell}, i1::Integer, i2::Integer)
+    @error("Not implemented")
+end
+
+function distances!(r::AbstractVector, t::PeriodicConstCellTrajectory, i1::Integer, i2::Integer)
+    M = PeriodicEuclidean(celldiag(t,1))
     colwise!(r, M, view(t,i1,:), view(t,i2,:))
 end
 
+function distances!(r::AbstractVector, t::AbstactPeriodicCellTrajectory, i1::Integer, i2::Integer)
+    r = [ evaluate(PeriodicEuclidean(celldiag(t,j)), view(t,i1,j), view(t,i2,j)) for j in 1:length(t) ]
+end
 
+function distances!(r::AbstractVector, t::AbstactPeriodicCellTrajectory{TriclinicCell}, i1::Integer, i2::Integer)
+    @error("Not implemented")
+end
 
-cellvolume(t::PeriodicConstCellTrajectory) = abs(det(t.cell))
+cellvolume(t::PeriodicConstCellTrajectory) = volume(t.cell)
 cellvolume(t::PeriodicConstCellTrajectory,i) = cellvolume(t)
 
-cellvolume(t::PeriodicCellTrajectory) = sum(map(x-> cellvolume(t, x), 1:length(t)))/length(t)
-cellvolume(t::PeriodicCellTrajectory, i) = abs(det(view(t.cell,:,:,i)))
+cellvolume(t::PeriodicCellTrajectory) = sum(volume.(t.cell)) / length(t)
+cellvolume(t::PeriodicCellTrajectory, i) = volume(t.cell[i])
 
 
 """
     angle(t::AbstractTrajectory, i, j, k)
 
-Computes angle for atoms i, j, k
+Computes angle for atoms i, j, k in degrees
 """
 function Base.angle(t::AbstractTrajectory, i, j, k)
     r1 = view(t,i,:) .- view(t,j,:)
@@ -212,7 +217,7 @@ Calculates radial distribution function
 function compute_rdf(t::AbstactPeriodicCellTrajectory, ur1::AbstractUnitRange,
                      ur2::AbstractUnitRange; mindis=undef, maxdis=9.0, nbins=100)
     dis = distances(t, ur1, ur2)
-    vd = diag(t.cell[:,:,1])
+    vd = cellvolume(t)  # this is mean volume which is ok
     di = DiscretizeUniformWidth(nbins)
     data = Dict()
     for i in ur1

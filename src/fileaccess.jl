@@ -1,6 +1,6 @@
 module fileaccess
 
-using ..trajectory
+using ..trajectory, ..cell
 using Distributed
 
 
@@ -49,64 +49,41 @@ function read_xyz(fname)
 end
 
 function read_pdb(fname)
-    #NOTE only orthorombic, tetragonal and cubic crystals
-    lines = Vector{String}()
-    open(fname, "r") do file
-        lines = readlines(file)
-    end
     xyz = Vector{Float64}()
     atoms = Vector{String}()
-    crystal = Vector{Float64}()
-    i = 1
+    crystal = Vector{OrthorombicCell}()
+    open(fname, "r") do file
+        lineiterator = eachline(file)
 
-    while i<length(lines)
-        if occursin("CRYST1", lines[i])
-            terms = split(lines[i])
-            append!(crystal,parse.(Float64, terms[2:4]))
-        elseif occursin("ATOM", lines[i]) || occursin("HETATM", lines[i])
-            push!(atoms, lines[i][77:78])
-            push!(xyz, parse(Float64, lines[i][31:38]))
-            push!(xyz, parse(Float64, lines[i][39:46]))
-            push!(xyz, parse(Float64, lines[i][47:54]))
-        elseif occursin("END", lines[i])
-            i+=1
-            break
+        for line in lineiterator
+            if occursin("CRYST1", line)
+                terms = split(line)
+                push!(crystal, OrthorombicCell(parse.(Float64, terms[2:4])...))
+            elseif occursin("ATOM", line) || occursin("HETATM", line)
+                push!(atoms, line[77:78])
+                push!(xyz, parse(Float64, line[31:38]))
+                push!(xyz, parse(Float64, line[39:46]))
+                push!(xyz, parse(Float64, line[47:54]))
+            elseif occursin("END", line)
+                break
+            end
         end
-        i+=1
-    end
 
-    for line in lines[i:end]
-        if occursin("ATOM", line) || occursin("HETATM", lines[i])
-            push!(xyz, parse(Float64, line[31:38]))
-            push!(xyz, parse(Float64, line[39:46]))
-            push!(xyz, parse(Float64, line[47:54]))
-        elseif occursin("CRYST1", line)
-            terms = split(line)
-            append!(crystal,parse.(Float64, terms[2:4]))
+        for line in lineiterator
+            if occursin("ATOM", line) || occursin("HETATM", line)
+                push!(xyz, parse(Float64, line[31:38]))
+                push!(xyz, parse(Float64, line[39:46]))
+                push!(xyz, parse(Float64, line[47:54]))
+            elseif occursin("CRYST1", line)
+                terms = split(line)
+                push!(crystal, OrthorombicCell(parse.(Float64, terms[2:4])...))
+            end
         end
     end
-    natoms = length(atoms)
 
-    #This is a hack!!!
-    nframes = Int( floor(length(xyz)/(3*natoms)))
-    cell = zeros(3,3,nframes)
-    if length(crystal)*3 == nframes
-        cell[1:9:end] = crystal[1:3:end]
-        cell[5:9:end] = crystal[2:3:end]
-        cell[9:9:end] = crystal[3:3:end]
-    elseif length(crystal)*3 < nframes
-        #TODO fix this cheating !!!
-        cell[1:9:3*length(crystal)] = crystal[1:3:end]
-        cell[5:9:3*length(crystal)] = crystal[2:3:end]
-        cell[9:9:3*length(crystal)] = crystal[3:3:end]
-    else
-        cell[1:9:end] = crystal[1:3:3*nframes]
-        cell[5:9:end] = crystal[2:3:3*nframes]
-        cell[9:9:end] = crystal[3:3:3*nframes]
-    end
-    #Hack again!!!
-    out = xyz[1:3*natoms*nframes]
-    return PeriodicCellTrajectory( reshape(out ,3, natoms, nframes), cell )
+    @assert length(atoms)*3*length(crystal) == length(xyz) "Number of atoms and parsed coordinates do not match."
+
+    return PeriodicCellTrajectory( reshape(xyz ,3, length(atoms), length(crystal)), crystal )
 end
 
 

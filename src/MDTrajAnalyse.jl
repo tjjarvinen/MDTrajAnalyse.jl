@@ -16,12 +16,22 @@ export AbstractTrajectory,
        read_xyz,
        read_pdb,
        parallel_rdf,
-       parallel_rdf_from_files
+       parallel_rdf_from_files,
 
+       AbstractUnitCell,
+       AbstractOrthorombicCell,
+       CubicCell,
+       OrthorombicCell,
+       TriclinicCell,
+       celldiag,
+       cellmatrix,
+       volume
 
+include("cell.jl")
 include("trajectory.jl")
 include("fileaccess.jl")
 
+using .cell
 using .trajectory
 using .fileaccess
 
