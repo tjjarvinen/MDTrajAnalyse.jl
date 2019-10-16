@@ -1,25 +1,28 @@
 module trajectory
 
-using Distances, LinearAlgebra, Discretizers
+using Discretizers
+using Distances
+using LinearAlgebra
 using ..cell
 
 export AbstractTrajectory,
        AbstractTrajectoryWithNames,
-       Trajectory,
-       TrajectoryWithNames,
-       PeriodicCellTrajectory,
-       natoms,
+       angletoframe,
+       cellvolume,
+       compute_rdf,
+       dihedral,
        distances,
        distances!,
-       cellvolume,
-       angletoframe,
+       natoms,
+       PeriodicCellTrajectory,
        sphericalview,
-       compute_rdf
+       Trajectory,
+       TrajectoryWithNames
 
 
 abstract type AbstractTrajectory end
 abstract type AbstractTrajectoryWithNames <: AbstractTrajectory end
-abstract type AbstactPeriodicCellTrajectory{T} <: AbstractTrajectory  where T<:AbstractUnitCell  end
+abstract type AbstactPeriodicCellTrajectory{T} <: AbstractTrajectory where T<:AbstractUnitCell  end
 
 
 struct Trajectory <: AbstractTrajectory
@@ -64,7 +67,7 @@ end
 struct PeriodicConstCellTrajectory{T} <: AbstactPeriodicCellTrajectory{T}
     xyz::Array{Float64,3}
     cell::T
-    function PeriodicCellTrajectory(xyz::AbstractArray{<:Real,3}, c::T)  where T <: AbstractUnitCell
+    function PeriodicCellTrajectory(xyz::AbstractArray{<:Real,3}, c::T) where T <: AbstractUnitCell
         if size(xyz,1) != 3
             throw(DimensionMismatch("PeriodicCellTrajectory - xyz has wrong dimensions"))
         end
@@ -110,7 +113,8 @@ end
 function distances!(r::AbstractArray{T,3} where T, t::AbstactPeriodicCellTrajectory,
                      ur1::AbstractUnitRange, ur2::AbstractUnitRange)
     for i in 1:length(t)
-        pairwise!(view(r,:,:,i),PeriodicEuclidean(celldiag(t,i)), view(t,ur1,i), view(t,ur2,i),dims=2)
+        pairwise!(view(r,:,:,i),PeriodicEuclidean(celldiag(t,i)), view(t,ur1,i),
+                                                                  view(t,ur2,i),dims=2)
     end
     return r
 end
@@ -174,23 +178,39 @@ function Base.angle(t::AbstractTrajectory, i, j, k)
 end
 
 """
-    angletoframe(t::AbstractTrajectory, i, j, k; frame=:)
+dihedral(t::AbstractTrajectory, i,j,k,m) -> Float64
+"""
+function dihedral(t::AbstractTrajectory, i,j,k,m)
+    out = zeros(length(t))
+    for n in 1:length(t)
+        b1 = view(t,j,n) .- view(t,i,n)
+        b2 = view(t,k,n) .- view(t,j,n)
+        b3 = view(t,m,n) .- view(t,k,n)
+        out[n]=atand((b1×b2)×(b2×b3)⋅b2 / norm(b2), (b1×b2)⋅(b2×b3))
+    end
+    return out
+end
 
-Computes angle two vectors. First from atoms i to j second from k to m.
+
+
+"""
+    angletoframe(t::AbstractTrajectory, i, j, k, m; frame=:)
+
+Computes angle betweem two vectors. First from atoms i to j second from k to m.
 Only given frame is calculated for first given vector.
 If frame=: (default) then calculate for whole trajectory.
 """
 function angletoframe(t::AbstractTrajectory, i, j, k, m; frame=:)
     r1 = view(t,j,frame) .- view(t,i,frame)
     r2 = view(t,m,:) .- view(t,k,:)
-    acos.(1 .- colwise(CosineDist(),r1,r2)) .* 180 ./ π
+    acosd.(1 .- colwise(CosineDist(),r1,r2))
 end
 
 
 
 
 """
-    sphericalview(t::AbstractTrajectory, i, j)
+    sphericalview(t::AbstractTrajectory, i, j) -> Dict
 
 Transfroms vector from atom i to j to spherical coordinates
 """
@@ -210,15 +230,16 @@ end
 
 """
     compute_rdf(t::AbstactPeriodicCellTrajectory, ur1::AbstractUnitRange,
-                     ur2::AbstractUnitRange; mindis=undef, maxdis=9.0, nbins=100)
+                     ur2::AbstractUnitRange; mindis=undef, maxdis=9.0, nbins=100) -> Dict
 
 Calculates radial distribution function
 """
 function compute_rdf(t::AbstactPeriodicCellTrajectory, ur1::AbstractUnitRange,
                      ur2::AbstractUnitRange; mindis=undef, maxdis=9.0, nbins=100)
     dis = distances(t, ur1, ur2)
-    vd = cellvolume(t)  # this is mean volume which is ok
     di = DiscretizeUniformWidth(nbins)
+
+    # Collect data that are in defined range [mindis, maxdis]
     data = Dict()
     for i in ur1
         tmp = @view dis[i,:,:]
@@ -231,7 +252,8 @@ function compute_rdf(t::AbstactPeriodicCellTrajectory, ur1::AbstractUnitRange,
         end
     end
 
-    ρ = length(ur2)*length(t) / cellvolume(t)
+    #Discretize data to form histograms
+    ρ = length(ur2)*length(t) / cellvolume(t)  # Average density for ur2  in trajectry
     edges = Dict()
     counts = Dict()
     radius = Dict()
@@ -249,7 +271,7 @@ function compute_rdf(t::AbstactPeriodicCellTrajectory, ur1::AbstractUnitRange,
         push!(counts, key=> count)
         push!(radius, key=>r)
     end
-    return Dict("r"=>radius, "rdf"=>counts)
+    return Dict("r"=>radius, "rdf"=>counts, "edges"=>edges)
 end
 
 

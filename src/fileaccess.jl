@@ -1,15 +1,29 @@
 module fileaccess
 
-using ..trajectory, ..cell
 using Distributed
+using ..cell
+using ..trajectory
 
 
-export read_xyz,
+export parallel_rdf_from_files,
        read_pdb,
-       parallel_rdf,
-       parallel_rdf_from_files
+       read_trajectory,
+       read_xyz
 
-function read_xyz(fname)
+
+function read_trajectory(fname::AbstractString)
+    sufix=split(fname, ".")[end]
+    if sufix in ["pdb", "PDB"]
+        return read_pdb(fname)
+    elseif sufix in ["xyz", "XYZ"]
+        return read_xyz(fname)
+    else
+        error("Trajectory file format not recognized")
+    end
+end
+
+
+function read_xyz(fname::AbstractString)
     lines = Vector{String}()
     open(fname, "r") do file
         lines = readlines(file)
@@ -48,7 +62,7 @@ function read_xyz(fname)
     return TrajectoryWithNames( reshape(data, 3, natoms, Int(length(data)/(3*natoms))), atoms)
 end
 
-function read_pdb(fname)
+function read_pdb(fname::AbstractString)
     xyz = Vector{Float64}()
     atoms = Vector{String}()
     crystal = Vector{OrthorombicCell}()
@@ -89,10 +103,10 @@ end
 
 
 
-function rdf_from_file(fname, ur1::AbstractUnitRange,
+function _rdf_from_file(fname, ur1::AbstractUnitRange,
                      ur2::AbstractUnitRange; mindis=undef, maxdis=9.0, nbins=100)
     try
-        t = read_pdb(fname)
+        t = read_trajectory(fname)
         return compute_rdf(t, ur1, ur2, mindis=mindis, maxdis=maxdis, nbins=nbins)
     catch
         @warn "file $fname failed"
@@ -100,22 +114,33 @@ function rdf_from_file(fname, ur1::AbstractUnitRange,
         return Dict()
 end
 
-function parallel_rdf_from_files(fnames::AbstractVector{String}, ur1::AbstractUnitRange,
-                     ur2::AbstractUnitRange; mindis=undef, maxdis=9.0, nbins=100)
-    dtmp = pmap( x -> rdf_from_file(x, ur1, ur2, mindis=mindis, maxdis=maxdis, nbins=nbins)   , fnames)
+"""
+    rdf_from_files(ur1::AbstractUnitRange, ur2::AbstractUnitRange, fnames...;
+                     mindis=0.0, maxdis=9.0, nbins=100)
+"""
+function rdf_from_files(ur1::AbstractUnitRange, ur2::AbstractUnitRange,
+                        fnames...; mindis=0.0, maxdis=9.0, nbins=100)
+    dtmp = pmap( x -> _rdf_from_file(x, ur1, ur2, mindis=mindis, maxdis=maxdis, nbins=nbins)   , fnames)
+
+    # Sum up results
     data = []
     for x in dtmp
-        if length(keys(x)) == 2
-            push!(data,x)
+        if length(keys(x)) == 0
+            continue
         end
+        push!(data,x)
     end
     rdf = Dict()
-    for (k,v) in data[1]["rdf"]
-        push!(rdf, k => deepcopy(v))
+    if length(data) >0
+        for (k,v) in data[1]["rdf"]
+            push!(rdf, k => deepcopy(v))
+        end
     end
-    for x in data[2:end]
-        for (k,v) in x["rdf"]
-            rdf[k] .+= v
+    if length(data) > 1
+        for x in data[2:end]
+            for (k,v) in x["rdf"]
+                rdf[k] .+= v
+            end
         end
     end
     for k in keys(rdf)

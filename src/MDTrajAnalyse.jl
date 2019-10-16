@@ -6,6 +6,7 @@ export AbstractTrajectory,
        TrajectoryWithNames,
        PeriodicCellTrajectory,
        natoms,
+       dihedral,
        distances,
        distances!,
        cellvolume,
@@ -13,18 +14,20 @@ export AbstractTrajectory,
        sphericalview,
        compute_rdf,
 
-       read_xyz,
-       read_pdb,
-       parallel_rdf,
        parallel_rdf_from_files,
+       read_pdb,
+       read_trajectory,
+       read_xyz,
 
        AbstractUnitCell,
        AbstractOrthorombicCell,
        CubicCell,
+       NonPeriodic,
        OrthorombicCell,
        TriclinicCell,
        celldiag,
        cellmatrix,
+       parsecell,
        volume
 
 include("cell.jl")
@@ -35,6 +38,5 @@ using .cell
 using .trajectory
 using .fileaccess
 
-greet() = print("Hello World!")
 
 end # module
