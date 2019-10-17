@@ -80,7 +80,7 @@ Base.show(io::IO, c::CubicCell) = print(io, "CubicCell a=",c.a)
 Base.show(io::IO, c::OrthorombicCell) = print(io, "OrthorombicCell")
 Base.show(io::IO, c::TriclinicCell) = print(io, "TriclinicCell")
 
-celldiag(c::AbtractPeriodicCell) = Diagonal(cellmatrix(c))
+celldiag(c::AbtractPeriodicCell) = diag(cellmatrix(c))
 
 cellmatrix(c::CubicCell) = Diagonal([c.a, c.a, c.a])
 cellmatrix(c::OrthorombicCell) = Diagonal(c.abc)

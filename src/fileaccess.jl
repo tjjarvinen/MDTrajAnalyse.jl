@@ -10,7 +10,14 @@ export parallel_rdf_from_files,
        read_trajectory,
        read_xyz
 
+"""
+    read_trajectory(fname::AbstractString) -> Trajectory
 
+Reads trajectory from given filename.
+Type of file
+
+## List of suported file formats
+"""
 function read_trajectory(fname::AbstractString)
     sufix=split(fname, ".")[end]
     if sufix in ["pdb", "PDB"]
@@ -22,57 +29,44 @@ function read_trajectory(fname::AbstractString)
     end
 end
 
+function read_dcd(fname::AbstractString)
+    #TODO
+end
+
 
 function read_xyz(fname::AbstractString)
     lines = Vector{String}()
+    na = 0
+    atoms = Vector{String}()
+    xyz = Vector{Float64}()
     open(fname, "r") do file
-        lines = readlines(file)
-    end
-
-    # How many atoms
-    natoms = parse(Int, lines[1])
-
-    # How many clusters - use of floor allows extra empty lines at end
-    nclusters = Int(floor(length(lines)/(natoms+2)))
-    @debug "Type of nclusters $(typeof(nclusters))"
-
-    xyz = zeros(Float64, 3, natoms)
-    atoms = Vector{String}(undef, natoms)
-    data = Vector{Float64}()
-
-    for na in 1:natoms
-        cont = split(lines[na+2])
-        atoms[na] = cont[1]
-        xyz[1,na] = parse(Float64, cont[2])
-        xyz[2,na] = parse(Float64, cont[3])
-        xyz[3,na] = parse(Float64, cont[4])
-    end
-    append!(data,xyz)
-
-    for nc in 2:nclusters
-        for na in 1:natoms
-            cont = split(lines[(nc-1)*(natoms+2)+na+2])
-            xyz[1,na] = parse(Float64, cont[2])
-            xyz[2,na] = parse(Float64, cont[3])
-            xyz[3,na] = parse(Float64, cont[4])
+        na = parse(Int,readline(file))  # Number of atoms
+        line = readline(file)
+        for i in 1:na
+            line = readline(file)
+            cont = split(line)
+            push!(atoms,cont[1])
+            append!(xyz, parse.(Float64, cont[2:4]))
         end
-        append!(data,xyz)
+        for line in eachline(file)
+            cont = split(line)
+            length(cont) == 4 && append!(xyz, parse.(Float64, cont[2:4]))
+        end
     end
-
-    return TrajectoryWithNames( reshape(data, 3, natoms, Int(length(data)/(3*natoms))), atoms)
+    return TrajectoryWithNames( reshape(xyz, 3, na, Int(length(xyz)/(3*na))), atoms)
 end
 
 function read_pdb(fname::AbstractString)
     xyz = Vector{Float64}()
     atoms = Vector{String}()
-    crystal = Vector{OrthorombicCell}()
+    crystal = Vector{AbstractUnitCell}()
     open(fname, "r") do file
         lineiterator = eachline(file)
 
         for line in lineiterator
             if occursin("CRYST1", line)
                 terms = split(line)
-                push!(crystal, OrthorombicCell(parse.(Float64, terms[2:4])...))
+                push!(crystal, parsecell(parse.(Float64, terms[2:7])...))
             elseif occursin("ATOM", line) || occursin("HETATM", line)
                 push!(atoms, line[77:78])
                 push!(xyz, parse(Float64, line[31:38]))
@@ -90,12 +84,15 @@ function read_pdb(fname::AbstractString)
                 push!(xyz, parse(Float64, line[47:54]))
             elseif occursin("CRYST1", line)
                 terms = split(line)
-                push!(crystal, OrthorombicCell(parse.(Float64, terms[2:4])...))
+                push!(crystal, parsecell(parse.(Float64, terms[2:7])...))
             end
         end
     end
 
     @assert length(atoms)*3*length(crystal) == length(xyz) "Number of atoms and parsed coordinates do not match."
+    if all( [ crystal[1] == x for x in crystal] )
+        return PeriodicConstCellTrajectory(reshape(xyz ,3, length(atoms), length(crystal)), crystal[1])
+    end
 
     return PeriodicCellTrajectory( reshape(xyz ,3, length(atoms), length(crystal)), crystal )
 end

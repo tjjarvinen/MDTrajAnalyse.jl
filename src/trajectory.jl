@@ -15,6 +15,7 @@ export AbstractTrajectory,
        distances!,
        natoms,
        PeriodicCellTrajectory,
+       PeriodicConstCellTrajectory,
        sphericalview,
        Trajectory,
        TrajectoryWithNames
@@ -67,7 +68,7 @@ end
 struct PeriodicConstCellTrajectory{T} <: AbstactPeriodicCellTrajectory{T}
     xyz::Array{Float64,3}
     cell::T
-    function PeriodicCellTrajectory(xyz::AbstractArray{<:Real,3}, c::T) where T <: AbstractUnitCell
+    function PeriodicConstCellTrajectory(xyz::AbstractArray{<:Real,3}, c::T) where T <: AbstractUnitCell
         if size(xyz,1) != 3
             throw(DimensionMismatch("PeriodicCellTrajectory - xyz has wrong dimensions"))
         end
@@ -117,6 +118,20 @@ function distances!(r::AbstractArray{T,3} where T, t::AbstactPeriodicCellTraject
                                                                   view(t,ur2,i),dims=2)
     end
     return r
+end
+
+function distances!(r::AbstractArray{T,3} where T, t::PeriodicConstCellTrajectory,
+                     ur1::AbstractUnitRange, ur2::AbstractUnitRange)
+    metric = PeriodicEuclidean(celldiag(t.cell))
+    for i in 1:length(t)
+        pairwise!(view(r,:,:,i), metric, view(t,ur1,i), view(t,ur2,i),dims=2)
+    end
+    return r
+end
+
+function distances!(r::AbstractArray{T,3} where T, t::PeriodicConstCellTrajectory{TriclinicCell},
+                     ur1::AbstractUnitRange, ur2::AbstractUnitRange)
+    @error("Not implemented")
 end
 
 function distances!(r::AbstractArray{T,3} where T, t::AbstactPeriodicCellTrajectory{TriclinicCell},
@@ -172,6 +187,7 @@ cellvolume(t::PeriodicCellTrajectory, i) = volume(t.cell[i])
 Computes angle for atoms i, j, k in degrees
 """
 function Base.angle(t::AbstractTrajectory, i, j, k)
+    #NOTE does not understand periodicity
     r1 = view(t,i,:) .- view(t,j,:)
     r2 = view(t,k,:) .- view(t,j,:)
     acos.(1 .- colwise(CosineDist(),r1,r2)) .* 180 ./ π
@@ -183,6 +199,7 @@ dihedral(t::AbstractTrajectory, i,j,k,m) -> Float64
 function dihedral(t::AbstractTrajectory, i,j,k,m)
     out = zeros(length(t))
     for n in 1:length(t)
+        #NOTE does not understand periodicity
         b1 = view(t,j,n) .- view(t,i,n)
         b2 = view(t,k,n) .- view(t,j,n)
         b3 = view(t,m,n) .- view(t,k,n)
