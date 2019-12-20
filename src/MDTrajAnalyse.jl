@@ -15,7 +15,7 @@ export AbstractTrajectory,
        sphericalview,
        compute_rdf,
 
-       parallel_rdf_from_files,
+       rdf_from_files,
        read_pdb,
        read_trajectory,
        read_xyz,

@@ -5,7 +5,7 @@ using ..cell
 using ..trajectory
 
 
-export parallel_rdf_from_files,
+export rdf_from_files,
        read_pdb,
        read_trajectory,
        read_xyz
@@ -117,7 +117,7 @@ end
 """
 function rdf_from_files(ur1::AbstractUnitRange, ur2::AbstractUnitRange,
                         fnames...; mindis=0.0, maxdis=9.0, nbins=100)
-    dtmp = pmap( x -> _rdf_from_file(x, ur1, ur2, mindis=mindis, maxdis=maxdis, nbins=nbins)   , fnames)
+    dtmp = pmap( x -> _rdf_from_file(x, ur1, ur2, mindis=mindis, maxdis=maxdis, nbins=nbins) , fnames)
 
     # Sum up results
     data = []

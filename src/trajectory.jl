@@ -258,14 +258,14 @@ function compute_rdf(t::AbstactPeriodicCellTrajectory, ur1::AbstractUnitRange,
 
     # Collect data that are in defined range [mindis, maxdis]
     data = Dict()
-    for i in ur1
+    for (i,j) in enumerate(ur1)
         tmp = @view dis[i,:,:]
         if mindis != undef
             q1 = tmp .< maxdis
             q2 = tmp .> mindis
-            push!(data, i=> tmp[ q1 .& q2 ]  )
+            push!(data, j=> tmp[ q1 .& q2 ]  )
         else
-            push!(data, i=> tmp[ tmp .< maxdis ]  )
+            push!(data, j=> tmp[ tmp .< maxdis ]  )
         end
     end
 
