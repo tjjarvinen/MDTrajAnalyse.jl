@@ -35,9 +35,5 @@ include("cell.jl")
 include("trajectory.jl")
 include("fileaccess.jl")
 
-using .cell
-using .trajectory
-using .fileaccess
-
 
 end # module
