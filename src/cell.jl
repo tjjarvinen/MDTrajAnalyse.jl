@@ -1,20 +1,8 @@
-module cell
+
 
 using LinearAlgebra
 using StaticArrays
 
-
-export AbstractUnitCell,
-       AbstractOrthorombicCell,
-       AbtractPeriodicCell,
-       CubicCell,
-       NonPeriodic,
-       OrthorombicCell,
-       TriclinicCell,
-       celldiag,
-       cellmatrix,
-       parsecell,
-       volume
 
 
 abstract type AbstractUnitCell end
@@ -92,5 +80,3 @@ cellvectorlengths(c::Union{OrthorombicCell,CubicCell}) = Diagonal(c)
 volume(c::CubicCell) = c.a^3
 volume(c::OrthorombicCell) = reduce(*,c.abc)
 volume(c::AbtractPeriodicCell) = abs(det(cellmatrix(c)))
-
-end #module

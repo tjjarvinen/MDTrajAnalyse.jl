@@ -1,14 +1,6 @@
-module fileaccess
 
 using Distributed
-using ..cell
-using ..trajectory
 
-
-export rdf_from_files,
-       read_pdb,
-       read_trajectory,
-       read_xyz
 
 """
     read_trajectory(fname::AbstractString) -> Trajectory
@@ -146,5 +138,3 @@ function rdf_from_files(ur1::AbstractUnitRange, ur2::AbstractUnitRange,
     rk = collect(keys(data[1]["r"]))[1]
     return Dict("r"=>data[1]["r"][rk] , "rdf" => rdf)
 end
-
-end  # module fileaccess

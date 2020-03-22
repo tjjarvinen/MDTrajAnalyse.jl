@@ -1,24 +1,8 @@
-module trajectory
+
 
 using Discretizers
 using Distances
 using LinearAlgebra
-using ..cell
-
-export AbstractTrajectory,
-       AbstractTrajectoryWithNames,
-       angletoframe,
-       cellvolume,
-       compute_rdf,
-       dihedral,
-       distances,
-       distances!,
-       natoms,
-       PeriodicCellTrajectory,
-       PeriodicConstCellTrajectory,
-       sphericalview,
-       Trajectory,
-       TrajectoryWithNames
 
 
 abstract type AbstractTrajectory end
@@ -93,8 +77,8 @@ Base.view(t::AbstractTrajectory, atom, frame) = view(t.xyz,:,atom,frame)
 Base.setindex!(t::AbstractTrajectory, X, frame) = t.xyz[:,:,frame] = X
 Base.setindex!(t::AbstractTrajectory, X, atom, frame) = t.xyz[:,atom,frame] = X
 
-cell.celldiag(t::AbstactPeriodicCellTrajectory, i) = celldiag(t.cell[i])
-cell.celldiag(t::PeriodicConstCellTrajectory, i) = celldiag(t.cell)
+celldiag(t::AbstactPeriodicCellTrajectory, i) = celldiag(t.cell[i])
+celldiag(t::PeriodicConstCellTrajectory, i) = celldiag(t.cell)
 
 
 function distances(t::AbstractTrajectory, ur1::AbstractUnitRange, ur2::AbstractUnitRange)
@@ -290,8 +274,3 @@ function compute_rdf(t::AbstactPeriodicCellTrajectory, ur1::AbstractUnitRange,
     end
     return Dict("r"=>radius, "rdf"=>counts, "edges"=>edges)
 end
-
-
-
-
-end  # module trajectory
