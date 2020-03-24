@@ -4,72 +4,72 @@ using Discretizers
 using Distances
 using LinearAlgebra
 
+abstract type AbstractAtomNames end
 
 abstract type AbstractTrajectory end
-abstract type AbstractTrajectoryWithNames <: AbstractTrajectory end
-abstract type AbstactPeriodicCellTrajectory{T} <: AbstractTrajectory where T<:AbstractUnitCell  end
 
 
-struct Trajectory <: AbstractTrajectory
+struct NoAtomName <: AbstractAtomNames end
+
+struct AtomNames <: AbstractAtomNames
+    names::Vector{String}
+end
+
+Base.getindex(a::AtomNames,i) = a.names[i]
+
+
+"""
+    Trajectory{TA<:AbstractAtomNames,TC<:AbstractUnitCell} <: AbstractTrajectory
+
+Holds molecular dynamics trajectory
+
+# Fields
+- xyz::Array{Float64,3}  : Coordinates for the atoms
+- names::TA              : Names of the atoms
+- cell::TC               : Unitcell information
+"""
+struct Trajectory{TA<:AbstractAtomNames,TC<:AbstractUnitCell} <: AbstractTrajectory
     xyz::Array{Float64,3}
-    function Trajectory(xyz::AbstractArray{<:Real,3})
+    names::TA
+    cell::TC
+    function Trajectory(xyz::AbstractArray{<:Real,3};
+         names::AbstractAtomNames=NoAtomName(), cell::AbstractUnitCell=NonPeriodic())
         if size(xyz,1) != 3
             throw(DimensionMismatch("Trajectory - xyz has wrong dimensions"))
         end
-        new(xyz)
+        new{typeof(names), typeof(cell)}(xyz, names, cell)
     end
 end
 
-
-struct TrajectoryWithNames <: AbstractTrajectoryWithNames
-    xyz::Array{Float64,3}
-    anames::Vector{String}
-    function TrajectoryWithNames(xyz::AbstractArray{<:Real,3}, anames::Vector{String})
-        if size(xyz,1) != 3
-            throw(DimensionMismatch("TrajectoryWithNames - xyz has wrong dimensions"))
-        end
-        if size(xyz,2) != length(anames)
-            throw(DimensionMismatch("TrajectoryWithNames - xyz and anames have different ammount of atoms"))
-        end
-        new(xyz, anames)
-    end
+function Trajectory(xyz::AbstractArray{<:Real,3}, names::AbstractVector{String};
+    cell=NonPeriodic()
+    )
+    return Trajectory(xyz; names=AtomNames(names), cell=cell)
 end
 
-struct PeriodicCellTrajectory{T} <: AbstactPeriodicCellTrajectory{T}
-    xyz::Array{Float64,3}
-    cell::Vector{T}
-    function PeriodicCellTrajectory(xyz::AbstractArray{<:Real,3}, c::AbstractVector{T}) where T <: AbstractUnitCell
-        if size(xyz,1) != 3
-            throw(DimensionMismatch("PeriodicCellTrajectory - xyz has wrong dimensions"))
-        end
-        if length(c) != size(xyz, 3)
-            throw(DimensionMismatch("PeriodicCellTrajectory - cell and xyz have different dimensions"))
-        end
-        new{T}(xyz, c)
+function Trajectory(
+    xyz::AbstractArray{<:Real,3},
+    names::AbstractVector{String},
+    cell::AbstractVector{T}
+    ) where T <: AbstractUnitCell
+    if all(x-> cell[1]==x,  cell)
+        return Trajectory(xyz; names=AtomNames(names), cell=cell[1])
     end
-end
-
-struct PeriodicConstCellTrajectory{T} <: AbstactPeriodicCellTrajectory{T}
-    xyz::Array{Float64,3}
-    cell::T
-    function PeriodicConstCellTrajectory(xyz::AbstractArray{<:Real,3}, c::T) where T <: AbstractUnitCell
-        if size(xyz,1) != 3
-            throw(DimensionMismatch("PeriodicCellTrajectory - xyz has wrong dimensions"))
-        end
-        new{T}(xyz, c)
-    end
+    return Trajectory(xyz; names=AtomNames(names), cell=VariableCell(cell))
 end
 
 
 natoms(t::AbstractTrajectory) = size(t.xyz,2)
 
 Base.length(t::AbstractTrajectory) = size(t.xyz,3)
-Base.show(io::IO, t::AbstractTrajectory) = print(io, "Trajectory of ",
-            length(t), " steps and ", natoms(t), " atoms" )
+function Base.show(io::IO, t::AbstractTrajectory)
+    print(io, "Trajectory of ", length(t), " steps and ", natoms(t), " atoms" )
+end
 
 Base.getindex(t::AbstractTrajectory, frame) = t.xyz[:,:,frame]
 Base.getindex(t::AbstractTrajectory, atom, frame) = t.xyz[:,atom,frame]
 Base.lastindex(t::AbstractTrajectory) = length(t)
+Base.firstindex(t::AbstractTrajectory) = 1
 
 Base.view(t::AbstractTrajectory, frame) = view(t.xyz,:,:,frame)
 Base.view(t::AbstractTrajectory, atom, frame) = view(t.xyz,:,atom,frame)
@@ -77,113 +77,122 @@ Base.view(t::AbstractTrajectory, atom, frame) = view(t.xyz,:,atom,frame)
 Base.setindex!(t::AbstractTrajectory, X, frame) = t.xyz[:,:,frame] = X
 Base.setindex!(t::AbstractTrajectory, X, atom, frame) = t.xyz[:,atom,frame] = X
 
-celldiag(t::AbstactPeriodicCellTrajectory, i) = celldiag(t.cell[i])
-celldiag(t::PeriodicConstCellTrajectory, i) = celldiag(t.cell)
+Base.iterate(t::AbstractTrajectory, state=1) = state > length(t) ? nothing : (view(t,state), state+1)
+
+function Base.eltype(::Type{Trajectory{TA,TC}}) where {TA<:AbstractAtomNames, TC<:AbtractPeriodicCell}
+    return Array{Float64,2}
+end
+
+function celldiag(t::Trajectory{TA,TC}, i) where {TA<:AbstractAtomNames, TC<:AbtractPeriodicCell}
+    return celldiag(t)
+end
+
+function celldiag(t::Trajectory{TA,VariableCell}, i) where TA<:AbstractAtomNames
+    return celldiag(t.cell[i])
+end
+
+function celldiag(t::Trajectory{TA,TC}) where {TA<:AbstractAtomNames, TC<:AbtractPeriodicCell}
+    return celldiag(t.cell)
+end
 
 
 function distances(t::AbstractTrajectory, ur1::AbstractUnitRange, ur2::AbstractUnitRange)
     out = Array{Float64}(undef, length(ur1), length(ur2), length(t))
     distances!(out,t,ur1,ur2)
+    return out
 end
 
-function distances!(r::AbstractArray{T,3} where T, t::AbstractTrajectory,
-                     ur1::AbstractUnitRange, ur2::AbstractUnitRange)
-    L = Euclidean()
-    for i in 1:length(t)
-        pairwise!(view(r,:,:,i),L, view(t,ur1,i), view(t,ur2,i),dims=2)
-    end
-    return r
-end
-
-function distances!(r::AbstractArray{T,3} where T, t::AbstactPeriodicCellTrajectory,
-                     ur1::AbstractUnitRange, ur2::AbstractUnitRange)
-    for i in 1:length(t)
-        pairwise!(view(r,:,:,i),PeriodicEuclidean(celldiag(t,i)), view(t,ur1,i),
-                                                                  view(t,ur2,i),dims=2)
-    end
-    return r
-end
-
-function distances!(r::AbstractArray{T,3} where T, t::PeriodicConstCellTrajectory,
-                     ur1::AbstractUnitRange, ur2::AbstractUnitRange)
-    metric = PeriodicEuclidean(celldiag(t.cell))
+function distances!(
+    r::AbstractArray{T,3} where T,
+    t::Trajectory{TA,NonPeriodic} where {TA<:AbstractAtomNames},
+    ur1::AbstractUnitRange,
+    ur2::AbstractUnitRange
+    )
+    metric = Euclidean()
     for i in 1:length(t)
         pairwise!(view(r,:,:,i), metric, view(t,ur1,i), view(t,ur2,i),dims=2)
     end
     return r
 end
 
-function distances!(r::AbstractArray{T,3} where T, t::PeriodicConstCellTrajectory{TriclinicCell},
-                     ur1::AbstractUnitRange, ur2::AbstractUnitRange)
-    @error("Not implemented")
+function distances!(
+    r::AbstractArray{T,3} where T,
+    t::Trajectory{TA,TC} where {TA<:AbstractAtomNames, TC<:AbstractOrthorombicCell},
+    ur1::AbstractUnitRange,
+    ur2::AbstractUnitRange
+    )
+    metric = (PeriodicEuclidean ∘ celldiag)(t)
+    for i in 1:length(t)
+        pairwise!(view(r,:,:,i), metric, view(t,ur1,i), view(t,ur2,i),dims=2)
+    end
+    return r
 end
 
-function distances!(r::AbstractArray{T,3} where T, t::AbstactPeriodicCellTrajectory{TriclinicCell},
-                     ur1::AbstractUnitRange, ur2::AbstractUnitRange)
-    @error("Not implemented")
+function distances!(
+    r::AbstractArray{T,3} where T,
+    t::Trajectory{TA,VariableCell} where {TA<:AbstractAtomNames},
+    ur1::AbstractUnitRange,
+    ur2::AbstractUnitRange
+    )
+    get_metric(c::NonPeriodic) = Euclidean()
+    get_metric(c::AbstractOrthorombicCell) = (PeriodicEuclidean ∘ celldiag)(c)
+    for i in 1:length(t)
+        pairwise!(view(r,:,:,i), get_metric(c.cell[i]), view(t,ur1,i), view(t,ur2,i),dims=2)
+    end
+    return r
 end
 
 
 function distances(t::AbstractTrajectory, i1::Integer, i2::Integer)
-    colwise(Euclidean(), view(t,i1,:), view(t,i2,:))
+    out = Vector{Float64}(undef, length(t))
+    distances!(out, t, i1, i2)
+    return out
 end
 
-function distances!(r::AbstractVector, t::AbstractTrajectory, i1::Integer, i2::Integer)
+function distances!(
+    r::AbstractVector,
+    t::Trajectory{TA,NonPeriodic} where {TA<:AbstractAtomNames},
+    i1::Integer,
+    i2::Integer
+    )
     colwise!(r, Euclidean(), view(t,i1,:), view(t,i2,:))
+    return r
 end
 
-function distances(t::PeriodicConstCellTrajectory, i1::Integer, i2::Integer)
-    M = PeriodicEuclidean(celldiag(t,1))
-    colwise(M, view(t,i1,:), view(t,i2,:))
+function distances!(
+    r::AbstractVector,
+    t::Trajectory{TA,TC} where {TA<:AbstractAtomNames, TC<:AbstractOrthorombicCell},
+    i1::Integer,
+    i2::Integer
+    )
+    metric = (PeriodicEuclidean ∘ celldiag)(t)
+    colwise!(r, metric, view(t,i1,:), view(t,i2,:))
+    return r
 end
 
-function distances(t::AbstactPeriodicCellTrajectory, i1::Integer, i2::Integer)
-    [ evaluate(PeriodicEuclidean(celldiag(t,j)), view(t,i1,j), view(t,i2,j)) for j in 1:length(t) ]
-end
 
-function distances(t::AbstactPeriodicCellTrajectory{TriclinicCell}, i1::Integer, i2::Integer)
-    @error("Not implemented")
-end
-
-function distances!(r::AbstractVector, t::PeriodicConstCellTrajectory, i1::Integer, i2::Integer)
-    M = PeriodicEuclidean(celldiag(t,1))
-    colwise!(r, M, view(t,i1,:), view(t,i2,:))
-end
-
-function distances!(r::AbstractVector, t::AbstactPeriodicCellTrajectory, i1::Integer, i2::Integer)
-    r = [ evaluate(PeriodicEuclidean(celldiag(t,j)), view(t,i1,j), view(t,i2,j)) for j in 1:length(t) ]
-end
-
-function distances!(r::AbstractVector, t::AbstactPeriodicCellTrajectory{TriclinicCell}, i1::Integer, i2::Integer)
-    @error("Not implemented")
-end
-
-cellvolume(t::PeriodicConstCellTrajectory) = volume(t.cell)
-cellvolume(t::PeriodicConstCellTrajectory,i) = cellvolume(t)
-
-cellvolume(t::PeriodicCellTrajectory) = sum(volume.(t.cell)) / length(t)
-cellvolume(t::PeriodicCellTrajectory, i) = volume(t.cell[i])
+cellvolume(t::AbstractTrajectory) = volume(t.cell)
 
 
 """
-    angle(t::AbstractTrajectory, i, j, k)
+    angle(t::AbstractTrajectory, i, j, k) -> Vector{Float64}
 
 Computes angle for atoms i, j, k in degrees
 """
 function Base.angle(t::AbstractTrajectory, i, j, k)
-    #NOTE does not understand periodicity
+    @warn "angle does not understand periodicity"
     r1 = view(t,i,:) .- view(t,j,:)
     r2 = view(t,k,:) .- view(t,j,:)
     acos.(1 .- colwise(CosineDist(),r1,r2)) .* 180 ./ π
 end
 
 """
-dihedral(t::AbstractTrajectory, i,j,k,m) -> Float64
+    dihedral(t::AbstractTrajectory, i,j,k,m) -> Vector{Float64}
 """
 function dihedral(t::AbstractTrajectory, i,j,k,m)
     out = zeros(length(t))
+    @warn "dihedral does not understand periodicity"
     for n in 1:length(t)
-        #NOTE does not understand periodicity
         b1 = view(t,j,n) .- view(t,i,n)
         b2 = view(t,k,n) .- view(t,j,n)
         b3 = view(t,m,n) .- view(t,k,n)
@@ -235,13 +244,20 @@ end
 
 Calculates radial distribution function
 """
-function compute_rdf(t::AbstactPeriodicCellTrajectory, ur1::AbstractUnitRange,
-                     ur2::AbstractUnitRange; mindis=undef, maxdis=9.0, nbins=100)
+function compute_rdf(
+    t::Trajectory{TA,TC} where {TA<:AbstractAtomNames, TC<:AbstractOrthorombicCell},
+    ur1::AbstractUnitRange,
+    ur2::AbstractUnitRange;
+    mindis=undef,
+    maxdis=9.0,
+    nbins=100
+    )
+
     dis = distances(t, ur1, ur2)
     di = DiscretizeUniformWidth(nbins)
 
     # Collect data that are in defined range [mindis, maxdis]
-    data = Dict()
+    data = Dict{Int, Vector{Float64}}()
     for (i,j) in enumerate(ur1)
         tmp = @view dis[i,:,:]
         if mindis != undef

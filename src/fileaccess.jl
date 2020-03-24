@@ -45,8 +45,15 @@ function read_xyz(fname::AbstractString)
             length(cont) == 4 && append!(xyz, parse.(Float64, cont[2:4]))
         end
     end
-    return TrajectoryWithNames( reshape(xyz, 3, na, Int(length(xyz)/(3*na))), atoms)
+    return Trajectory( reshape(xyz, 3, na, Int(length(xyz)/(3*na))), atoms)
 end
+
+
+function write_xyz(fname::AbstractString, traj::Trajectory)
+
+    #TODO
+end
+
 
 function read_pdb(fname::AbstractString)
     xyz = Vector{Float64}()
@@ -82,17 +89,14 @@ function read_pdb(fname::AbstractString)
     end
 
     @assert length(atoms)*3*length(crystal) == length(xyz) "Number of atoms and parsed coordinates do not match."
-    if all( [ crystal[1] == x for x in crystal] )
-        return PeriodicConstCellTrajectory(reshape(xyz ,3, length(atoms), length(crystal)), crystal[1])
-    end
 
-    return PeriodicCellTrajectory( reshape(xyz ,3, length(atoms), length(crystal)), crystal )
+    return Trajectory(reshape(xyz ,3, length(atoms), length(crystal)), atoms, crystal)
 end
 
 
 
 
-function _rdf_from_file(fname, ur1::AbstractUnitRange,
+function _rdf_from_file(fname::AbstractString, ur1::AbstractUnitRange,
                      ur2::AbstractUnitRange; mindis=undef, maxdis=9.0, nbins=100)
     try
         t = read_trajectory(fname)
