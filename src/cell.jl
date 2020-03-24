@@ -15,8 +15,6 @@ struct VariableCell <: AbtractPeriodicCell
     cell::Vector{AbtractPeriodicCell}
 end
 
-Base.getindex(c::VariableCell, i) = c.cell[i]
-
 struct CubicCell <: AbstractOrthorombicCell
     a::Float64
 end
