@@ -1,13 +1,13 @@
 language: julia
 julia:
   - nightly
-  - 1.2
+  - 1
 
 codecov: true
 
 matrix:
   allow_failures:
     - julia: nightly
-    
+
 notifications:
   email: false
