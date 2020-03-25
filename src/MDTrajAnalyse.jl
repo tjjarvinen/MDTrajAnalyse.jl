@@ -12,6 +12,7 @@ export AbstractTrajectory,
        sphericalview,
        subtrajectory,
        compute_rdf,
+       get_close_atoms,
 
        AbstractAtomNames,
        AtomNames,
@@ -38,5 +39,6 @@ include("cell.jl")
 include("trajectory.jl")
 include("fileaccess.jl")
 include("properties.jl")
+include("SubModules/visualize.jl")
 
 end # module

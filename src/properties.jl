@@ -250,3 +250,12 @@ function compute_rdf(ur1::AbstractUnitRange, ur2::AbstractUnitRange,
     rk = collect(keys(data[1]["r"]))[1]
     return Dict("r"=>data[1]["r"][rk] , "rdf" => rdf)
 end
+
+
+function get_close_atoms(traj::AbstractTrajectory, i; maxdis=5.0)
+    t = subtrajectory(traj,1)
+    d = distances(t,1:1005,i)[:,:,1]
+    m = minimum(d; dims=2)
+    a = m .< maxdis
+    return getatoms(traj, a[:,1])
+end

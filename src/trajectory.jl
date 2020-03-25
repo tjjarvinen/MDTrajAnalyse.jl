@@ -67,6 +67,11 @@ function Base.show(io::IO, t::AbstractTrajectory)
     print(io, "Trajectory of ", length(t), " steps and ", natoms(t), " atoms" )
 end
 
+Base.length(names::AtomNames) = length(names.names)
+Base.getindex(names::AtomNames) = names.names[i]
+Base.lastindex(names::AtomNames) = length(names)
+Base.firstindex(names::AtomNames) = 1
+
 Base.getindex(t::AbstractTrajectory, frame) = t.xyz[:,:,frame]
 Base.getindex(t::AbstractTrajectory, atom, frame) = t.xyz[:,atom,frame]
 Base.lastindex(t::AbstractTrajectory) = length(t)
@@ -79,6 +84,8 @@ Base.setindex!(t::AbstractTrajectory, X, frame) = t.xyz[:,:,frame] = X
 Base.setindex!(t::AbstractTrajectory, X, atom, frame) = t.xyz[:,atom,frame] = X
 
 Base.iterate(t::AbstractTrajectory, state=1) = state > length(t) ? nothing : (view(t,state), state+1)
+
+Base.iterate(names::AtomNames, state=1) = state > length(names) ? nothing : (names[state],state+1)
 
 function Base.eltype(::Type{Trajectory{TA,TC}}) where {TA<:AbstractAtomNames, TC<:AbtractPeriodicCell}
     return Array{Float64,2}
