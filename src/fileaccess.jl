@@ -45,8 +45,15 @@ function read_xyz(fname::AbstractString)
             length(cont) == 4 && append!(xyz, parse.(Float64, cont[2:4]))
         end
     end
-    return TrajectoryWithNames( reshape(xyz, 3, na, Int(length(xyz)/(3*na))), atoms)
+    return Trajectory( reshape(xyz, 3, na, Int(length(xyz)/(3*na))), atoms)
 end
+
+
+function write_xyz(fname::AbstractString, traj::Trajectory)
+
+    #TODO
+end
+
 
 function read_pdb(fname::AbstractString)
     xyz = Vector{Float64}()
@@ -82,59 +89,6 @@ function read_pdb(fname::AbstractString)
     end
 
     @assert length(atoms)*3*length(crystal) == length(xyz) "Number of atoms and parsed coordinates do not match."
-    if all( [ crystal[1] == x for x in crystal] )
-        return PeriodicConstCellTrajectory(reshape(xyz ,3, length(atoms), length(crystal)), crystal[1])
-    end
 
-    return PeriodicCellTrajectory( reshape(xyz ,3, length(atoms), length(crystal)), crystal )
-end
-
-
-
-
-function _rdf_from_file(fname, ur1::AbstractUnitRange,
-                     ur2::AbstractUnitRange; mindis=undef, maxdis=9.0, nbins=100)
-    try
-        t = read_trajectory(fname)
-        return compute_rdf(t, ur1, ur2, mindis=mindis, maxdis=maxdis, nbins=nbins)
-    catch
-        @warn "file $fname failed"
-    end
-        return Dict()
-end
-
-"""
-    rdf_from_files(ur1::AbstractUnitRange, ur2::AbstractUnitRange, fnames...;
-                     mindis=0.0, maxdis=9.0, nbins=100)
-"""
-function rdf_from_files(ur1::AbstractUnitRange, ur2::AbstractUnitRange,
-                        fnames...; mindis=0.0, maxdis=9.0, nbins=100)
-    dtmp = pmap( x -> _rdf_from_file(x, ur1, ur2, mindis=mindis, maxdis=maxdis, nbins=nbins) , fnames)
-
-    # Sum up results
-    data = []
-    for x in dtmp
-        if length(keys(x)) == 0
-            continue
-        end
-        push!(data,x)
-    end
-    rdf = Dict()
-    if length(data) >0
-        for (k,v) in data[1]["rdf"]
-            push!(rdf, k => deepcopy(v))
-        end
-    end
-    if length(data) > 1
-        for x in data[2:end]
-            for (k,v) in x["rdf"]
-                rdf[k] .+= v
-            end
-        end
-    end
-    for k in keys(rdf)
-        rdf[k] ./= length(data)
-    end
-    rk = collect(keys(data[1]["r"]))[1]
-    return Dict("r"=>data[1]["r"][rk] , "rdf" => rdf)
+    return Trajectory(reshape(xyz ,3, length(atoms), length(crystal)), atoms, crystal)
 end

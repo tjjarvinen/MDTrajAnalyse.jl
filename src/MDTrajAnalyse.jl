@@ -1,31 +1,34 @@
 module MDTrajAnalyse
 
 export AbstractTrajectory,
-       AbstractTrajectoryWithNames,
        Trajectory,
-       TrajectoryWithNames,
-       PeriodicCellTrajectory,
-       PeriodicConstCellTrajectory,
        natoms,
+       getatoms,
        dihedral,
        distances,
        distances!,
        cellvolume,
        angletoframe,
        sphericalview,
+       subtrajectory,
        compute_rdf,
 
-       rdf_from_files,
+       AbstractAtomNames,
+       AtomNames,
+       NoAtomName,
+
        read_pdb,
        read_trajectory,
        read_xyz,
 
        AbstractUnitCell,
+       AbtractPeriodicCell,
        AbstractOrthorombicCell,
        CubicCell,
        NonPeriodic,
        OrthorombicCell,
        TriclinicCell,
+       VariableCell,
        celldiag,
        cellmatrix,
        parsecell,
@@ -34,6 +37,6 @@ export AbstractTrajectory,
 include("cell.jl")
 include("trajectory.jl")
 include("fileaccess.jl")
-
+include("properties.jl")
 
 end # module

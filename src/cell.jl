@@ -9,7 +9,10 @@ abstract type AbstractUnitCell end
 abstract type AbtractPeriodicCell <: AbstractUnitCell end
 abstract type AbstractOrthorombicCell <: AbtractPeriodicCell end
 
-struct NonPeriodic <: AbstractUnitCell
+struct NonPeriodic <: AbstractUnitCell end
+
+struct VariableCell <: AbtractPeriodicCell
+    cell::Vector{AbtractPeriodicCell}
 end
 
 struct CubicCell <: AbstractOrthorombicCell
@@ -29,7 +32,7 @@ end
 struct TriclinicCell <: AbtractPeriodicCell
     abc::SMatrix{3,3,Float64}
     function TriclinicCell(abc::AbstractMatrix)
-        @assert size(abc) == 3
+        @assert size(abc) == (3,3)
         new(abc)
     end
     function TriclinicCell(a::AbstractVector)
@@ -67,16 +70,27 @@ end
 Base.show(io::IO, c::CubicCell) = print(io, "CubicCell a=",c.a)
 Base.show(io::IO, c::OrthorombicCell) = print(io, "OrthorombicCell")
 Base.show(io::IO, c::TriclinicCell) = print(io, "TriclinicCell")
+Base.show(io::IO, c::VariableCell) = print(io, "Variable cell of length ", length(c))
+
+Base.length(c::VariableCell) = length(c.cell)
+Base.getindex(c::VariableCell, i) = c.cell[i]
+Base.lastindex(c::VariableCell) = length(c)
+Base.firstindex(c::VariableCell) = 1
+
+Base.iterate(c::VariableCell, state=1) = state > length(c) ? nothing : (c[state], state+1)
 
 celldiag(c::AbtractPeriodicCell) = diag(cellmatrix(c))
 
 cellmatrix(c::CubicCell) = Diagonal([c.a, c.a, c.a])
 cellmatrix(c::OrthorombicCell) = Diagonal(c.abc)
 cellmatrix(c::TriclinicCell) = c.abc
+cellmatrix(c::VariableCell) = [ cellmatrix(x) for x in c]
 cellvectorlengths(c::AbtractPeriodicCell) = [norm(x) for x in eachcol(cellmatrix(c))]
-cellvectorlengths(c::Union{OrthorombicCell,CubicCell}) = Diagonal(c)
+cellvectorlengths(c::AbstractOrthorombicCell) = (Diagonal ∘ cellmatrix)(c)
+cellvectorlengths(c::VariableCell) = [ cellvectorlengths(x) for x in c ]
 
 
 volume(c::CubicCell) = c.a^3
-volume(c::OrthorombicCell) = reduce(*,c.abc)
-volume(c::AbtractPeriodicCell) = abs(det(cellmatrix(c)))
+volume(c::OrthorombicCell) = prod(c.abc)
+volume(c::AbtractPeriodicCell) = (abs ∘ det ∘ cellmatrix)(c)
+volume(c::VariableCell) = [ volume(x) for x in c ]
