@@ -49,9 +49,21 @@ function read_xyz(fname::AbstractString)
 end
 
 
-function write_xyz(fname::AbstractString, traj::Trajectory)
+function write_xyz(io::IO, traj::Trajectory{AtomNames, TC}) where {TC<:AbstractUnitCell}
+    for x in traj
+        println(io, "  ", length(traj.names),"\n")
+        for (n, r) in zip(traj.names, eachcol(x))
+            println(io, n, "   ", r[1], "  ", r[2], "  ", r[3])
+        end
+    end
+    return nothing
+end
 
-    #TODO
+function write_xyz(fname::AbstractString, traj::Trajectory)
+    open(fname, "w") do file
+        write_xyz(file, traj)
+    end
+    return nothing
 end
 
 
@@ -62,6 +74,7 @@ function read_pdb(fname::AbstractString)
     open(fname, "r") do file
         lineiterator = eachline(file)
 
+        # Read data that need to read only once, like atom names
         for line in lineiterator
             if occursin("CRYST1", line)
                 terms = split(line)
@@ -76,6 +89,7 @@ function read_pdb(fname::AbstractString)
             end
         end
 
+        # Read bulk data
         for line in lineiterator
             if occursin("ATOM", line) || occursin("HETATM", line)
                 push!(xyz, parse(Float64, line[31:38]))

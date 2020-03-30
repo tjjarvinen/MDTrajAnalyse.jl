@@ -21,6 +21,7 @@ export AbstractTrajectory,
        read_pdb,
        read_trajectory,
        read_xyz,
+       write_xyz,
 
        AbstractUnitCell,
        AbtractPeriodicCell,
