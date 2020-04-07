@@ -76,26 +76,26 @@ function read_pdb(fname::AbstractString)
 
         # Read data that need to read only once, like atom names
         for line in lineiterator
-            if occursin("CRYST1", line)
+            if occursin(r"^CRYST1", line)
                 terms = split(line)
                 push!(crystal, parsecell(parse.(Float64, terms[2:7])...))
-            elseif occursin("ATOM", line) || occursin("HETATM", line)
+            elseif occursin(r"^ATOM", line) || occursin(r"^HETATM", line)
                 push!(atoms, line[77:78])
                 push!(xyz, parse(Float64, line[31:38]))
                 push!(xyz, parse(Float64, line[39:46]))
                 push!(xyz, parse(Float64, line[47:54]))
-            elseif occursin("END", line)
+            elseif occursin(r"^END", line)
                 break
             end
         end
 
         # Read bulk data
         for line in lineiterator
-            if occursin("ATOM", line) || occursin("HETATM", line)
+            if occursin(r"^ATOM", line) || occursin(r"^HETATM", line)
                 push!(xyz, parse(Float64, line[31:38]))
                 push!(xyz, parse(Float64, line[39:46]))
                 push!(xyz, parse(Float64, line[47:54]))
-            elseif occursin("CRYST1", line)
+            elseif occursin(r"^CRYST1", line)
                 terms = split(line)
                 push!(crystal, parsecell(parse.(Float64, terms[2:7])...))
             end
