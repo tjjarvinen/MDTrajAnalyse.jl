@@ -1,6 +1,7 @@
 module Visualize
 
-export visualize
+export visualize,
+       external_visualize
 
 using AbstractPlotting
 using ..MDTrajAnalyse
@@ -51,5 +52,17 @@ function visualize(traj::AbstractTrajectory; step=100, rotationspeed=0.05)
     cameracontrols(sc).rotationspeed[] = rotationspeed
     final=hbox(si,sc)
 end
+
+
+function external_visualize(traj::AbstractTrajectory;
+    cmd="vlc", stdout=devnull, stderr=devnull, command="vmd"
+    )
+    fname= tempname()*".xyz"
+    write_xyz(fname, traj)
+    run(pipeline(`$(command) $(fname)`, stdout=stdout, stderr=stderr))
+    rm(fname)
+end
+
+
 
 end # module
