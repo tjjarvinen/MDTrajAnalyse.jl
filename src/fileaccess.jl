@@ -6,9 +6,11 @@ using Distributed
     read_trajectory(fname::AbstractString) -> Trajectory
 
 Reads trajectory from given filename.
-Type of file
+Type of file determined based on sufix.
 
 ## List of suported file formats
+- XYZ
+- PDB
 """
 function read_trajectory(fname::AbstractString)
     sufix=split(fname, ".")[end]
@@ -20,6 +22,17 @@ function read_trajectory(fname::AbstractString)
         error("Trajectory file format not recognized")
     end
 end
+
+
+"""
+    read_trajectory(fnames::AbstractString...) -> Vector{Trajectory}
+
+Reads given files using threading
+"""
+function read_trajectory(fnames::AbstractString...)
+    return fetch.( [Threads.@spawn(read_trajectory(x)) for x in fnames] )
+end
+
 
 function read_dcd(fname::AbstractString)
     #TODO
