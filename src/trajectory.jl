@@ -59,6 +59,17 @@ function Trajectory(
     return Trajectory(xyz; names=AtomNames(names), cell=VariableCell(cell))
 end
 
+function Trajectory(
+    xyz::AbstractArray{<:Real,3},
+    cell::AbstractVector{T}
+    ) where T <: AbstractUnitCell
+    if all(x-> cell[1]==x,  cell)
+        return Trajectory(xyz; cell=cell[1])
+    else
+        return Trajectory(xyz; cell=VariableCell(cell))
+    end
+end
+
 
 natoms(t::AbstractTrajectory) = size(t.xyz,2)
 
