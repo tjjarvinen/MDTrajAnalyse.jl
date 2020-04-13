@@ -36,27 +36,37 @@ end
 
 function read_dcd(fname::AbstractString)
     #TODO
+    # For reference
+    # https://github.com/cp2k/cp2k/blob/master/src/motion/dumpdcd.F
 end
 
 
-function read_xyz(fname::AbstractString)
+read_xyz(fname::AbstractString) = open(read_xyz, fname, "r")
+
+
+function read_xyz(io::IO)
     lines = Vector{String}()
-    na = 0
     atoms = Vector{String}()
     xyz = Vector{Float64}()
-    open(fname, "r") do file
-        na = parse(Int,readline(file))  # Number of atoms
-        line = readline(file)
-        for i in 1:na
-            line = readline(file)
-            cont = split(line)
-            push!(atoms,cont[1])
-            append!(xyz, parse.(Float64, cont[2:4]))
-        end
-        for line in eachline(file)
-            cont = split(line)
+
+    na = parse(Int,readline(io))  # Number of atoms
+    line = readline(io)   # Comment line
+    for i in 1:na
+        line = readline(io)
+        cont = split(line)
+        push!(atoms,cont[1])
+        append!(xyz, parse.(Float64, cont[2:4]))
+    end
+    i = 1
+    for line in eachline(io)
+        cont = split(line)
+        if i == na+2
+            i = 1
+            continue
+        elseif i > 2
             length(cont) == 4 && append!(xyz, parse.(Float64, cont[2:4]))
         end
+        i += 1
     end
     return Trajectory( reshape(xyz, 3, na, Int(length(xyz)/(3*na))), atoms)
 end
