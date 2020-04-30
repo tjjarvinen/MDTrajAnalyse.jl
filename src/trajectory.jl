@@ -72,8 +72,8 @@ Base.getindex(names::AtomNames) = names.names[i]
 Base.lastindex(names::AtomNames) = length(names)
 Base.firstindex(names::AtomNames) = 1
 
-Base.getindex(t::AbstractTrajectory, frame) = t.xyz[:,:,frame]
-Base.getindex(t::AbstractTrajectory, atom, frame) = t.xyz[:,atom,frame]
+Base.getindex(t::AbstractTrajectory, frame) = view(t.xyz,:,:,frame)
+Base.getindex(t::AbstractTrajectory, atom, frame) = view(t.xyz,:,atom,frame)
 Base.lastindex(t::AbstractTrajectory) = length(t)
 Base.firstindex(t::AbstractTrajectory) = 1
 
@@ -180,7 +180,7 @@ function (*)(t1::Trajectory{NoAtomName,TC}, t2::Trajectory{NoAtomName,TC}) where
     return Trajectory(cat(t1.xyz, t2.xyz; dims=2); names=NoAtomName(), cell=t1.cell)
 end
 
-getatoms(t::AbstractTrajectory, i) = Trajectory(t.xyz[:,i,:], t.names[i], t.cell)
+getatoms(t::AbstractTrajectory, i) = Trajectory(view(t.xyz,:,i,:), t.names[i], t.cell)
 
 function getatoms(t::Trajectory{NoAtomName,T} where {T<:AbstractUnitCell}, i)
     return Trajectory(t.xyz[:,i,:]; names=NoAtomName(), cell=t.cell)
