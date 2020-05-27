@@ -20,6 +20,7 @@ export AbstractTrajectory,
 
        read_pdb,
        read_trajectory,
+       read_dcd,
        read_xyz,
        write_xyz,
 
