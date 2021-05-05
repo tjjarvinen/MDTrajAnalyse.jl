@@ -149,7 +149,7 @@ end
 """
     compute_rdf(t, ur1, ur2; mindis=undef, maxdis=9.0, nbins=100) -> Dict
 
-Calculates radial distribution function
+Calculates radial distribution function for trajectory or file `t`
 """
 function compute_rdf(
     t::Trajectory{TA,TC} where {TA<:AbstractAtomNames, TC<:AbstractOrthorombicCell},
@@ -201,13 +201,8 @@ end
 
 function compute_rdf(fname::AbstractString, ur1::AbstractUnitRange,
                      ur2::AbstractUnitRange; mindis=undef, maxdis=9.0, nbins=100)
-    try
-        t = read_trajectory(fname)
-        return compute_rdf(t, ur1, ur2, mindis=mindis, maxdis=maxdis, nbins=nbins)
-    catch
-        @warn "file $fname failed"
-    end
-        return Dict()
+    t = read_trajectory(fname)
+    return compute_rdf(t, ur1, ur2, mindis=mindis, maxdis=maxdis, nbins=nbins)
 end
 
 
