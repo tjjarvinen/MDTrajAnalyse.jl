@@ -132,11 +132,16 @@ function read_xyz(io::IO)
         if i == na+2
             i = 1
             continue
-        elseif i > 2
-            length(cont) == 4 && append!(xyz, parse.(Float64, cont[2:4]))
+        elseif  i > 2
+            if length(cont) >= 4
+                append!(xyz, parse.(Float64, cont[2:4]))
+            else
+                error("File is not in xyz format")
+            end
         end
         i += 1
     end
+    @debug "help " na, length(xyz), length(xyz)/(3*na)
     return Trajectory( reshape(xyz, 3, na, Int(length(xyz)/(3*na))), atoms)
 end
 
